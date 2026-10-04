@@ -1,17 +1,10 @@
-const { Pool } = require('pg');
-const fs = require('fs');
-const path = require('path');
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/ticket_service',
-  max: 50, // connection pool limit
-});
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 async function initDb() {
-  const schemaPath = path.join(__dirname, '..', 'schema.sql');
-  const schema = fs.readFileSync(schemaPath, 'utf8');
-  await pool.query(schema);
-  console.log(JSON.stringify({ msg: 'Database initialized', event: 'db_init' }));
+  // Prisma will connect automatically. We don't need to run schema.sql anymore, 
+  // as the db is already created, but if it wasn't, Prisma Migrate would handle it.
+  console.log(JSON.stringify({ msg: 'Database initialized via Prisma', event: 'db_init' }));
 }
 
-module.exports = { pool, initDb };
+module.exports = { prisma, initDb };

@@ -1,43 +1,55 @@
-const { pool } = require('../config/db');
+const { prisma } = require('../config/db');
 
 async function createShow(id, name, price_paise, seats) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(
-      'INSERT INTO shows (id, name, price_paise, total_seats) VALUES ($1, $2, $3, $4)',
-      [id, name, price_paise, seats.length]
-    );
+  await prisma.$transaction(async (tx) => {
+    await tx.show.create({
+      data: {
+        id,
+        name,
+        pricePaise: price_paise,
+        totalSeats: seats.length,
+      }
+    });
 
-    for (const seat of seats) {
-      await client.query(
-        'INSERT INTO seats (show_id, seat_number, status) VALUES ($1, $2, $3)',
-        [id, seat, 'available']
-      );
-    }
-    await client.query('COMMIT');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+    const seatData = seats.map(seat => ({
+      showId: id,
+      seatNumber: seat,
+      status: 'available'
+    }));
+
+    await tx.seat.createMany({
+      data: seatData
+    });
+  });
 }
 
 async function getShowById(showId) {
-  const showRes = await pool.query('SELECT id, name, price_paise, total_seats FROM shows WHERE id = $1', [showId]);
-  if (showRes.rows.length === 0) return null;
-  return showRes.rows[0];
+  const show = await prisma.show.findUnique({
+    where: { id: showId }
+  });
+  if (!show) return null;
+  return {
+    id: show.id,
+    name: show.name,
+    price_paise: show.pricePaise,
+    total_seats: show.totalSeats
+  };
 }
 
 async function getSeatsByShow(showId) {
-  const seatsRes = await pool.query('SELECT seat_number, status FROM seats WHERE show_id = $1', [showId]);
-  return seatsRes.rows;
+  const seats = await prisma.seat.findMany({
+    where: { showId }
+  });
+  return seats.map(s => ({
+    seat_number: s.seatNumber,
+    status: s.status
+  }));
 }
 
 async function getAvailableSeatCount(showId) {
-  const res = await pool.query("SELECT COUNT(*) FROM seats WHERE show_id = $1 AND status = 'available'", [showId]);
-  return parseInt(res.rows[0].count, 10);
+  return await prisma.seat.count({
+    where: { showId, status: 'available' }
+  });
 }
 
 module.exports = {

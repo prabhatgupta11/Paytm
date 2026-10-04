@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Show {
+  id          String   @id @default(uuid()) @db.VarChar(50)
+  name        String
+  pricePaise  Int      @map("price_paise")
+  totalSeats  Int      @map("total_seats")
+  
+  seats       Seat[]
+  reservations Reservation[]
+
+  @@map("shows")
+}
+
+model Seat {
+  showId     String   @map("show_id") @db.VarChar(50)
+  seatNumber String   @map("seat_number")
+  status     String   // 'available', 'held', 'confirmed'
+  
+  show       Show     @relation(fields: [showId], references: [id])
+  reservationSeats ReservationSeat[]
+
+  @@id([showId, seatNumber])
+  @@map("seats")
+}
+
+model Reservation {
+  id          String   @id @default(uuid()) @db.VarChar(50)
+  showId      String   @map("show_id") @db.VarChar(50)
+  userId      String   @map("user_id")
+  amountPaise Int      @map("amount_paise")
+  status      String   // 'confirmed', 'cancelled'
+  
+  show        Show     @relation(fields: [showId], references: [id])
+  reservationSeats ReservationSeat[]
+
+  @@index([userId, showId, status])
+  @@map("reservations")
+}
+
+model ReservationSeat {
+  reservationId String @map("reservation_id") @db.VarChar(50)
+  showId        String @map("show_id") @db.VarChar(50)
+  seatNumber    String @map("seat_number")
+  
+  reservation   Reservation @relation(fields: [reservationId], references: [id])
+  seat          Seat        @relation(fields: [showId, seatNumber], references: [showId, seatNumber])
+
+  @@id([reservationId, showId, seatNumber])
+  @@map("reservation_seats")
+}
+
+model IdempotencyKey {
+  key             String @id
+  userId          String @map("user_id")
+  requestBodyHash String @map("request_body_hash")
+  responseStatus  Int    @map("response_status")
+  responseBody    Json   @map("response_body")
+
+  @@map("idempotency_keys")
+}
