@@ -1,6 +1,6 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { pool, initDb } = require('./config/db');
+const { prisma, initDb } = require('./config/db');
 const { register } = require('./config/metrics');
 const showRoutes = require('./routes/showRoutes');
 const reservationRoutes = require('./routes/reservationRoutes');
@@ -36,7 +36,7 @@ app.get('/livez', (req, res) => {
 
 app.get('/readyz', async (req, res) => {
   try {
-    await pool.query('SELECT 1');
+    await prisma.$queryRaw`SELECT 1`;
     res.send('OK');
   } catch (err) {
     console.error(JSON.stringify({ event: 'readyz_failed', error: err.message }));

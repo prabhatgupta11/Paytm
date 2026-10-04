@@ -100,7 +100,9 @@ async function reserveSeats(req, res) {
 
       // Check user limit
       const limitRes = await tx.$queryRaw`
-        SELECT COUNT(*) as count FROM reservations WHERE show_id = ${showId} AND user_id = ${userId} AND status = 'confirmed'
+        SELECT COUNT(*) as count FROM reservation_seats rs 
+        JOIN reservations r ON rs.reservation_id = r.id 
+        WHERE r.show_id = ${showId} AND r.user_id = ${userId} AND r.status = 'confirmed'
       `;
       const currentHeld = Number(limitRes[0].count);
 
