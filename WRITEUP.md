@@ -3,13 +3,15 @@
 ## The Atomic Decision
 The core requirement is to handle highly concurrent requests to reserve seats without double-selling, and with exactly-once idempotency. 
 
-The atomic decision is implemented using a **single PostgreSQL transaction with row-level locking**:
-1. **Idempotency Guard**: We insert the `idempotency_key` into an `idempotency_keys` table with an `ON CONFLICT DO NOTHING` clause. If it exists, we check if the request body hashes match (rejecting with 409 if they don't, or returning the previous result if it was already processed).
-2. **User Limit Check**: We run a `COUNT(*)` query for the user's currently confirmed seats for the show. If `count + new_seats > limit`, we abort the transaction.
-3. **Pessimistic Locking for Seats**: To prevent race conditions, we issue a `SELECT ... FOR UPDATE` on the requested seats. 
-   - **Crucial step to prevent deadlock**: The seats are strictly sorted lexicographically before the query. This ensures that concurrent transactions locking intersecting sets of seats will acquire the locks in the exact same order, completely eliminating the possibility of deadlocks.
-4. **State Verification**: If any seat isn't 'available', we rollback and return 409.
-5. **Commit**: Update the seats, insert the reservation, update the idempotency result, and commit.
+The atomic decision is implemented using a **single Prisma transaction with row-level pessimistic locking and advisory locks**:
+1. **Queue Management**: The `$transaction` wrapper is configured with explicit `maxWait` and `timeout` overrides (e.g., 30s) to handle extreme burst queues without throwing 500s on constrained databases.
+2. **Idempotency Guard**: We insert the `idempotency_key` into an `idempotency_keys` table using raw SQL `ON CONFLICT DO NOTHING`. If it exists, we check if the request body hashes match (rejecting with 409 if they don't, or returning the previous result if it was already processed).
+3. **Per-User Concurrency Barrier (Advisory Lock)**: To prevent a single greedy user from bypassing the per-user seat limit via a race condition (which happens in `Read Committed` isolation if 10 parallel requests read a count of `0`), we take out a session-level PostgreSQL advisory lock `pg_advisory_xact_lock(user_id_hash)`. This cleanly serializes concurrent requests from the *same* user without blocking requests from other users.
+4. **User Limit Check**: With the user safely serialized, we run a `COUNT` query for the user's currently confirmed seats for the show. If `count + new_seats > limit`, we abort the transaction.
+5. **Pessimistic Locking for Seats**: To prevent race conditions between different users wanting the same seat, we issue a raw SQL `SELECT ... FOR UPDATE` on the requested seats. 
+   - **Crucial step to prevent deadlock**: The seats are strictly sorted lexicographically before the query. This ensures that concurrent transactions locking intersecting sets of seats will acquire the locks in the exact same order, completely eliminating the possibility of cyclic deadlocks.
+6. **State Verification**: If any seat isn't 'available', we rollback and return 409.
+7. **Commit**: Update the seats, insert the reservation, update the idempotency result, and commit.
 
 This mechanism pushes the decision into the database's locking engine. Because of `FOR UPDATE`, the second concurrent request for the same seat blocks until the first finishes. Once the first finishes (updating the seat to 'confirmed'), the second request reads the updated row, sees it's no longer 'available', and cleanly declines with a 409. No 500s are produced under contention.
 

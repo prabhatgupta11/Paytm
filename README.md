@@ -13,14 +13,21 @@ This will start the PostgreSQL database and the Node.js API server on port 3000.
 
 ## Running the Burst Test
 
-To simulate a stampede and verify correctness:
+To simulate a stampede and verify correctness locally:
 ```sh
 node burst.js http://localhost:3000
 ```
-This script creates a show and fires concurrent reservation requests, demonstrating how the system correctly handles:
-- Hot seat contention (500 users trying to grab `A1` exactly at the same time).
+
+**To test against the live deployment:**
+```sh
+node burst.js https://paytm-3nv5.onrender.com
+```
+
+This script creates a show and fires 541 concurrent reservation requests exactly at the same time, demonstrating how the system correctly handles:
+- Hot seat contention (500 users trying to grab `A1` exactly at the same time; 1 gets 201, 499 get 409).
 - Per-user seat limits (capped at 4).
 - Idempotency enforcement and conflict resolution.
+- Zero 500 server errors under load.
 
 ## API Endpoints
 
