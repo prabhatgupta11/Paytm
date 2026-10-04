@@ -1,10 +1,12 @@
 const fs = require('fs');
 const crypto = require('crypto');
 const http = require('http');
+const https = require('https');
 
 const BASE_URL = process.argv[2] || 'http://localhost:3000';
+const client = BASE_URL.startsWith('https') ? https : http;
 
-const agent = new http.Agent({ keepAlive: true, maxSockets: 500 });
+const agent = new client.Agent({ keepAlive: true, maxSockets: 500 });
 
 async function makeRequest(method, path, body, headers = {}) {
   const url = `${BASE_URL}${path}`;
@@ -18,7 +20,7 @@ async function makeRequest(method, path, body, headers = {}) {
   };
   
   return new Promise((resolve, reject) => {
-    const req = http.request(url, options, (res) => {
+    const req = client.request(url, options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {

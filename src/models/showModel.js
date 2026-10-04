@@ -20,7 +20,7 @@ async function createShow(id, name, price_paise, seats) {
     await tx.seat.createMany({
       data: seatData
     });
-  });
+  }, { maxWait: 30000, timeout: 30000 });
 }
 
 async function getShowById(showId) {

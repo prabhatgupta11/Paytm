@@ -32,7 +32,7 @@ async function cancelReservation(req, res) {
       await reservationModel.cancelReservationStatus(tx, reservationId);
 
       return sId;
-    });
+    }, { maxWait: 30000, timeout: 30000 });
 
     const availableCount = await showModel.getAvailableSeatCount(showId);
     seatsAvailable.set({ show_id: showId }, availableCount);

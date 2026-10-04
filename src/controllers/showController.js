@@ -176,7 +176,7 @@ async function reserveSeats(req, res) {
       await saveIdempotencyResponse(tx, idempotency_key, 201, successResponse);
 
       return successResponse;
-    });
+    }, { maxWait: 30000, timeout: 30000 });
 
     reservationsConfirmed.inc();
     const availableCount = await showModel.getAvailableSeatCount(showId);
